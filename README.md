@@ -19,6 +19,20 @@ Print Magic: The Gathering proxy cards from your browser. Paste a decklist, and 
 
 ![The Print settings dialog: paper, gap, bleed, cut lines, double-sided printing and card back](screenshots/print-settings.png)
 
+## How it works
+
+The app is one HTML file (about 7,700 lines of HTML, CSS and JavaScript) with no framework and no build step. The only library is [jsPDF](https://github.com/parallax/jsPDF), kept in `vendor/` with its license and checksum and loaded only when you export a PDF.
+
+- **One layout calculator.** `computeLayout()` works out every box on a sheet in inches from the page's top-left corner: each card's trim box and bleed box, the cut marks, and where each card's back lands. The screen, the browser's print output and the PDF export all draw from it, so they can't disagree. The grid is centred on the page and the printer offsets move it from there. Back pages mirror the fronts around the page centre for a long-edge flip, keep the horizontal printer offset (the printer shifts both sides the same way) and then add the back offset. The same function says in plain words why a combination doesn't fit the page, which is what greys out unsafe choices in Print settings.
+- **Printing at exact size.** The page size goes into an `@page` rule with no margin, and every box is placed in inches. Chrome rounds plain boxes to whole CSS pixels when it prints but leaves transforms alone, so the horizontal offset and the centring of each cut mark on its cut line are applied as transforms.
+- **Scryfall lookups.** A pasted decklist is resolved through Scryfall's `/cards/collection` endpoint, 75 cards per request. Each line is tried at its most specific first (set and collector number, then set, then name alone), and only the misses go on to the next round. A collector number that turns out to be a different card is rejected rather than printed. Every API call goes through one queue that keeps to Scryfall's published limits (2 requests a second for search, named, random and collection, 10 a second for everything else, each with a 10% margin), and a 429 response pauses all requests for at least 30 seconds, or longer if `Retry-After` asks.
+- **Bleed colour.** The bleed around a card is filled with that card's own border colour. It is sampled on a canvas from a thin band just inside each edge of the image: colours are grouped into 16 levels per channel, transparent pixels at the rounded corners are skipped, and the average of the most common group wins.
+- **Placement.** All pages form one run of positions in reading order. Inserting a card moves the cards after it forward one cell, up to the next empty cell (adding a page if there is none), and removing one moves them back, so the Deck panel's **+** and **-** never overwrite a card.
+- **Storage and offline use.** The layout is saved in `localStorage` and uploaded images in IndexedDB (in memory in private browsing). A service worker caches the app itself network-first, so a new release shows up on the next visit; Scryfall API replies network-first with the cached copy as an offline fallback; and card images cache-first, because Scryfall's image URLs are versioned and never go stale. The API and image caches drop their oldest entries past a set count.
+- **PDF export.** jsPDF writes pages at the exact paper size in points, from the same calculator. With bleed on, each card's bleed box is filled with its border colour first; the image is then clipped to the trim box (with rounded corners when there is no bleed). JPEGs go in as they are, with no re-encoding; other images are drawn over their bleed colour (or white, without bleed) and encoded as JPEG, or kept as PNG in the "Original PNG" mode. Each distinct image is embedded once and reused.
+
+**Testing.** The tests are kept out of this repository. 25 in-browser test files cover decklist parsing, layout, placement, the Deck panel, tokens, double-sided printing, PDF export and the Scryfall rate limits. A print harness drives headless Chrome over the DevTools protocol, builds known layouts in the app and saves Chrome's real print output with `Page.printToPDF`; a Python script (PyMuPDF) then renders each page and compares it pixel by pixel with reference prints, so any unintended change to what prints is caught. Further checks measure where each card's edges actually land in the printed PDF against the calculator's boxes, and check the exported PDF's image positions, bleed colours and cut marks.
+
 ## How to run it
 
 Use the [live version](https://cmullis1.github.io/MTG-Proxy-Maker/), or run it yourself:
@@ -117,13 +131,7 @@ Works in all modern browsers. A few features depend on the browser:
 
 Card data and images come from the [Scryfall API](https://scryfall.com/docs/api). Searching for new cards needs an internet connection; cards you have fetched before are cached. The app keeps to Scryfall's published rate limits.
 
-## How it was built
-
-I directed this project and Claude Code (Anthropic's AI coding tool) wrote most of the code. My part was the problem (printing playtest proxies that come out the right size and line up on both sides of the page), the decisions about how each feature should behave, and the testing.
-
-- It is one HTML file (about 7,700 lines of HTML, CSS and JavaScript) with no framework and no build step. The only library is [jsPDF](https://github.com/parallax/jsPDF), kept in `vendor/` with its license and checksum, for the PDF export.
-- The recent features (the print pipeline, gap-free placement, the Deck panel and the centred grid) each went through a written design and plan before any code was written.
-- 791 automated checks across 25 in-browser test files cover decklist parsing, page layout, placement, the Deck panel, tokens, double-sided printing, PDF export and Scryfall rate limits. A separate print test drives headless Chrome, prints known layouts and compares them pixel by pixel with reference prints, so any unintended change to what prints is caught. The tests live in my working copy and are not part of this repository.
+Built with Claude Code.
 
 ## License
 
