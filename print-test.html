@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Print test (temporary)</title>
+  <style>
+    @page { size: 8.5in 11in; margin: 0; }
+    * { box-sizing: border-box; }
+    body { font: 16px system-ui, sans-serif; margin: 0; padding: 16px; background: #f3f4f6; color: #111827; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { margin: 6px 0; line-height: 1.4; }
+    .btn { display: block; width: 100%; max-width: 480px; margin: 10px 0; padding: 14px 16px; min-height: 52px; font: 600 16px system-ui, sans-serif; text-align: left; color: #111827; background: #fff; border: 1px solid #9ca3af; border-radius: 10px; text-decoration: none; cursor: pointer; }
+    .btn small { display: block; font-weight: 400; color: #4b5563; font-size: 13px; margin-top: 2px; }
+    .group { margin-top: 18px; }
+    .group h2 { font-size: 15px; margin: 0; color: #374151; text-transform: uppercase; letter-spacing: .04em; }
+    #info, #log { white-space: pre-wrap; font: 12px ui-monospace, Menlo, Consolas, monospace; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; max-width: 720px; overflow-wrap: anywhere; }
+    #log { min-height: 80px; }
+    .calib { display: none; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .screen { display: none !important; }
+      .calib { display: block; position: relative; width: 8.5in; height: 11in; overflow: hidden; }
+      .card { position: absolute; width: 2.475in; height: 3.465in; border: 0.5pt solid #000; font: 9pt system-ui, sans-serif; display: flex; align-items: center; justify-content: center; text-align: center; }
+      .ruler { position: absolute; left: 2.2815in; top: 10.80in; width: 100mm; border-top: 1pt solid #000; font: 8pt system-ui, sans-serif; padding-top: 2pt; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen">
+    <h1>Print test (temporary)</h1>
+    <p>A throwaway page to see which ways of printing work on this device and in this browser. Open it from a Discord message first, then again in real Safari or Chrome. Try each button, then screenshot this page (or use <b>Copy results</b>) and send it over.</p>
+
+    <div class="group">
+      <h2>1. Plain print</h2>
+      <button class="btn" id="printBtn">Print this page<small>The same call the app's Print button makes. Prints a 3 x 3 card grid. Measure the line at the bottom: it should be exactly 100 mm. Three cards across should be about 188 mm.</small></button>
+    </div>
+
+    <div class="group">
+      <h2>2. Escape to the real browser</h2>
+      <a class="btn" id="safariLink">Open in Safari (iPad / iPhone)<small>Uses the x-safari-https link (iOS 17 and later).</small></a>
+      <a class="btn" id="chromeLink">Open in Chrome (Android)<small>Uses an Android intent link that names Chrome.</small></a>
+      <a class="btn" id="defaultLink">Open in default browser (Android)<small>Android intent link without naming a browser.</small></a>
+    </div>
+
+    <div class="group">
+      <h2>3. PDF</h2>
+      <button class="btn" id="shareBtn">Share PDF<small>Opens the share menu with a one-page PDF of the same grid. On the iPad look for Print and Save to Files.</small></button>
+      <button class="btn" id="downloadBtn">Download PDF<small>A normal file download.</small></button>
+      <button class="btn" id="openBtn">Open PDF in a new tab<small>Shows the PDF in the browser's viewer.</small></button>
+    </div>
+
+    <div class="group">
+      <h2>Results</h2>
+      <button class="btn" id="copyBtn">Copy results</button>
+      <div id="log"></div>
+      <h2 style="margin-top:14px">This browser</h2>
+      <div id="info"></div>
+    </div>
+  </div>
+
+  <div class="calib" id="calib"></div>
+
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script>
+    var CARD_W = 2.475, CARD_H = 3.465, PAGE_W = 8.5, PAGE_H = 11;
+    var LEFT = (PAGE_W - 3 * CARD_W) / 2, TOP = (PAGE_H - 3 * CARD_H) / 2;
+    var SELF = 'cmullis1.github.io/MTG-Proxy-Maker/print-test.html';
+    var t0 = Date.now();
+    var logEl = document.getElementById('log');
+    var infoEl = document.getElementById('info');
+
+    function log(msg){
+      var line = '[' + ((Date.now() - t0) / 1000).toFixed(1) + 's] ' + msg;
+      logEl.textContent += line + '\n';
+    }
+
+    // Print-only calibration grid, positioned in inches like the app's cells.
+    var calib = document.getElementById('calib');
+    for (var r = 0; r < 3; r++){
+      for (var c = 0; c < 3; c++){
+        var d = document.createElement('div');
+        d.className = 'card';
+        d.style.left = (LEFT + c * CARD_W) + 'in';
+        d.style.top = (TOP + r * CARD_H) + 'in';
+        d.textContent = 'Card ' + (r * 3 + c + 1) + ' - 62.9 x 88.0 mm';
+        calib.appendChild(d);
+      }
+    }
+    var ruler = document.createElement('div');
+    ruler.className = 'ruler';
+    ruler.textContent = '100 mm';
+    calib.appendChild(ruler);
+
+    var ua = navigator.userAgent;
+    var inApp = /Discord|FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Twitter|Snapchat|TikTok|musical_ly|; wv\)|GSA\//i.exec(ua);
+    var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    var iosMatch = /OS (\d+)_(\d+)/.exec(ua);
+    var info = [
+      'URL: ' + location.href,
+      'User agent: ' + ua,
+      'iOS version (from UA): ' + (iosMatch ? iosMatch[1] + '.' + iosMatch[2] : 'n/a (iPads in desktop mode report as Mac)'),
+      'Touch points: ' + navigator.maxTouchPoints,
+      'Looks like in-app browser: ' + (inApp ? 'yes (' + inApp[0] + ')' : 'no match'),
+      'Has "Safari/" in UA: ' + /Safari\//.test(ua),
+      'Home-screen app mode: ' + standalone,
+      'window.print exists: ' + (typeof window.print),
+      'navigator.share exists: ' + (typeof navigator.share),
+      'navigator.canShare exists: ' + (typeof navigator.canShare),
+      'Screen: ' + screen.width + 'x' + screen.height + ', viewport ' + innerWidth + 'x' + innerHeight + ', dpr ' + devicePixelRatio
+    ];
+    infoEl.textContent = info.join('\n');
+
+    document.getElementById('safariLink').href = 'x-safari-https://' + SELF;
+    document.getElementById('chromeLink').href = 'intent://' + SELF + '#Intent;scheme=https;package=com.android.chrome;end';
+    document.getElementById('defaultLink').href = 'intent://' + SELF + '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+    ['safariLink', 'chromeLink', 'defaultLink'].forEach(function(id){
+      document.getElementById(id).addEventListener('click', function(){
+        log(id + ' tapped; if nothing opened, it is blocked here');
+      });
+    });
+
+    // Plain print: record whether the browser ever announces a print dialog.
+    var sawBeforePrint = false;
+    window.addEventListener('beforeprint', function(){ sawBeforePrint = true; log('beforeprint fired (print dialog opening)'); });
+    window.addEventListener('afterprint', function(){ log('afterprint fired (print dialog closed)'); });
+    document.getElementById('printBtn').addEventListener('click', function(){
+      sawBeforePrint = false;
+      log('Print tapped, calling window.print()');
+      var start = Date.now();
+      try { window.print(); } catch (err) { log('window.print threw: ' + err.name + ': ' + err.message); }
+      var held = Date.now() - start;
+      log('window.print returned after ' + held + ' ms');
+      setTimeout(function(){
+        if (!sawBeforePrint) log('No print event within 2 s of returning. If no print screen appeared, print is blocked here.');
+      }, 2000);
+    });
+
+    // The PDF is built up front so Share runs straight from the tap; some browsers refuse
+    // a share that starts after waiting on anything.
+    var pdfBlob = null, pdfFile = null;
+    try {
+      var doc = new window.jspdf.jsPDF({ unit: 'in', format: [PAGE_W, PAGE_H] });
+      doc.setLineWidth(0.5 / 72);
+      doc.setFontSize(9);
+      for (var pr = 0; pr < 3; pr++){
+        for (var pc = 0; pc < 3; pc++){
+          var x = LEFT + pc * CARD_W, y = TOP + pr * CARD_H;
+          doc.rect(x, y, CARD_W, CARD_H);
+          doc.text('Card ' + (pr * 3 + pc + 1) + ' - 62.9 x 88.0 mm', x + CARD_W / 2, y + CARD_H / 2, { align: 'center' });
+        }
+      }
+      var rulerLen = 100 / 25.4;
+      doc.setLineWidth(1 / 72);
+      doc.line((PAGE_W - rulerLen) / 2, 10.8, (PAGE_W + rulerLen) / 2, 10.8);
+      doc.setFontSize(8);
+      doc.text('100 mm', PAGE_W / 2, 10.95, { align: 'center' });
+      pdfBlob = doc.output('blob');
+      pdfFile = new File([pdfBlob], 'print-test.pdf', { type: 'application/pdf' });
+      log('PDF ready (' + Math.round(pdfBlob.size / 1024) + ' KB)');
+      var canFiles = false;
+      try { canFiles = !!(navigator.canShare && navigator.canShare({ files: [pdfFile] })); } catch (e) {}
+      infoEl.textContent += '\ncanShare a PDF file: ' + canFiles;
+    } catch (err) {
+      log('Could not build PDF: ' + err.name + ': ' + err.message);
+    }
+
+    document.getElementById('shareBtn').addEventListener('click', function(){
+      if (!pdfFile){ log('Share: no PDF'); return; }
+      if (!navigator.share){ log('Share: navigator.share is missing here'); return; }
+      log('Share tapped, opening share menu');
+      navigator.share({ files: [pdfFile], title: 'Print test' }).then(function(){
+        log('Share finished (an app was picked)');
+      }).catch(function(err){
+        log('Share failed or was cancelled: ' + err.name + ': ' + err.message);
+      });
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', function(){
+      if (!pdfBlob){ log('Download: no PDF'); return; }
+      var url = URL.createObjectURL(pdfBlob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'print-test.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+      log('Download tapped; say whether a file was saved and where');
+    });
+
+    document.getElementById('openBtn').addEventListener('click', function(){
+      if (!pdfBlob){ log('Open: no PDF'); return; }
+      var url = URL.createObjectURL(pdfBlob);
+      var w = window.open(url, '_blank');
+      log('Open in new tab: ' + (w ? 'window opened' : 'blocked (window.open returned null)'));
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', function(){
+      var text = 'LOG\n' + logEl.textContent + '\nBROWSER\n' + infoEl.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){ log('Copied to clipboard'); }, function(err){ log('Copy failed: ' + err.name + '. Screenshot instead.'); });
+      } else {
+        log('Clipboard not available here. Screenshot instead.');
+      }
+    });
+  </script>
+</body>
+</html>
