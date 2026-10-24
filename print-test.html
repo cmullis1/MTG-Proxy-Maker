@@ -47,6 +47,7 @@
     <div class="group">
       <h2>3. PDF</h2>
       <button class="btn" id="shareBtn">Share PDF<small>Opens the share menu with a one-page PDF of the same grid. On the iPad look for Print and Save to Files.</small></button>
+      <button class="btn" id="shareGridBtn">Share PDF, cards only<small>Same 3 x 3 grid, but the PDF page is only as big as the cards (no paper border), so the iPad has nothing to shrink it into. Print it and lay a real Magic card on a box: the edges should line up exactly.</small></button>
       <button class="btn" id="downloadBtn">Download PDF<small>A normal file download.</small></button>
       <button class="btn" id="openBtn">Open PDF in a new tab<small>Shows the PDF in the browser's viewer.</small></button>
     </div>
@@ -166,16 +167,38 @@
       log('Could not build PDF: ' + err.name + ': ' + err.message);
     }
 
-    document.getElementById('shareBtn').addEventListener('click', function(){
-      if (!pdfFile){ log('Share: no PDF'); return; }
-      if (!navigator.share){ log('Share: navigator.share is missing here'); return; }
-      log('Share tapped, opening share menu');
-      navigator.share({ files: [pdfFile], title: 'Print test' }).then(function(){
-        log('Share finished (an app was picked)');
+    // Cards-only page: exactly the grid's size, so it fits inside a printer's unprintable edges.
+    var gridFile = null;
+    try {
+      var gdoc = new window.jspdf.jsPDF({ unit: 'in', format: [3 * CARD_W, 3 * CARD_H] });
+      gdoc.setLineWidth(0.5 / 72);
+      gdoc.setFontSize(9);
+      for (var gr = 0; gr < 3; gr++){
+        for (var gc = 0; gc < 3; gc++){
+          var gx = gc * CARD_W, gy = gr * CARD_H;
+          gdoc.rect(gx, gy, CARD_W, CARD_H);
+          gdoc.text('Card ' + (gr * 3 + gc + 1), gx + CARD_W / 2, gy + CARD_H / 2 - 0.08, { align: 'center' });
+          gdoc.text('lay a real card here', gx + CARD_W / 2, gy + CARD_H / 2 + 0.12, { align: 'center' });
+        }
+      }
+      gridFile = new File([gdoc.output('blob')], 'print-test-cards-only.pdf', { type: 'application/pdf' });
+      log('Cards-only PDF ready');
+    } catch (err) {
+      log('Could not build cards-only PDF: ' + err.name + ': ' + err.message);
+    }
+
+    function sharePdf(file, label){
+      if (!file){ log(label + ': no PDF'); return; }
+      if (!navigator.share){ log(label + ': navigator.share is missing here'); return; }
+      log(label + ' tapped, opening share menu');
+      navigator.share({ files: [file], title: 'Print test' }).then(function(){
+        log(label + ' finished (an app was picked)');
       }).catch(function(err){
-        log('Share failed or was cancelled: ' + err.name + ': ' + err.message);
+        log(label + ' failed or was cancelled: ' + err.name + ': ' + err.message);
       });
-    });
+    }
+    document.getElementById('shareBtn').addEventListener('click', function(){ sharePdf(pdfFile, 'Share PDF'); });
+    document.getElementById('shareGridBtn').addEventListener('click', function(){ sharePdf(gridFile, 'Share cards-only PDF'); });
 
     document.getElementById('downloadBtn').addEventListener('click', function(){
       if (!pdfBlob){ log('Download: no PDF'); return; }
